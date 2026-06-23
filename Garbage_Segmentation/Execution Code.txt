@@ -1,0 +1,133 @@
+!ls
+
+!unzip trash.v1i.yolov8.zip
+
+!pip install -U ultralytics
+
+!yolo version
+
+!cat data.yaml
+
+content = """train: train/images
+val: valid/images
+test: test/images
+
+nc: 10
+names:
+  - Battery
+  - Clothing
+  - General trash
+  - Glass
+  - Metal
+  - Paper
+  - Paper pack
+  - Plastic
+  - Plastic bag
+  - Styrofoam
+"""
+
+with open("data.yaml", "w") as f:
+    f.write(content)
+
+!ls train
+!ls valid || echo "valid folder NOT found"
+!ls val || echo "val folder NOT found"
+!ls test
+
+
+!yolo task=segment mode=train model=yolov8s-seg.pt data=data.yaml epochs=50 imgsz=640 batch=8
+
+!ls /content/runs/segment/train2
+
+from IPython.display import Image, display
+import os
+
+base = "/content/runs/segment/train2"
+
+graphs = [
+    "results.png",
+    "confusion_matrix.png",
+    "MaskF1_curve.png",
+    "MaskPR_curve.png",
+    "MaskP_curve.png",
+    "MaskR_curve.png",
+    "BoxF1_curve.png",
+    "BoxPR_curve.png",
+    "BoxP_curve.png",
+    "BoxR_curve.png"
+]
+
+for g in graphs:
+    path = os.path.join(base, g)
+    if os.path.exists(path):
+        print(f"\nShowing {g}")
+        display(Image(filename=path))
+    else:
+        print(f"{g} not found")
+
+
+!yolo task=segment mode=val model=/content/runs/segment/train2/weights/best.pt data=data.yaml
+
+import glob
+import random
+
+# Get a list of all image files in the train/images directory
+image_files = glob.glob('train/images/*.jpg')
+
+# Select a random image for inference
+if image_files:
+    sample_image_path = random.choice(image_files)
+    print(f"Running inference on: {sample_image_path}")
+else:
+    sample_image_path = None
+    print("No images found in train/images for inference.")
+
+
+
+
+if sample_image_path:
+    !yolo task=segment mode=predict model=/content/runs/segment/train2/weights/best.pt source={sample_image_path} conf=0.25
+
+    from IPython.display import Image, display
+    import os
+
+    # The inference results are usually saved in runs/segment/predict
+    # We need to find the latest prediction run directory
+    predict_runs = sorted(glob.glob('runs/segment/predict*'))
+    latest_predict_run = predict_runs[-1]
+
+    # The predicted image will be in this directory, with the original filename
+    predicted_image_name = os.path.basename(sample_image_path)
+    predicted_image_path = os.path.join(latest_predict_run, predicted_image_name)
+
+    if os.path.exists(predicted_image_path):
+        print(f"\nDisplaying predicted image: {predicted_image_path}")
+        display(Image(filename=predicted_image_path))
+    else:
+        print(f"Predicted image not found at {predicted_image_path}")
+else:
+    print("Cannot run inference without a sample image.")
+
+
+
+from IPython.display import Image, display
+import os
+
+# Path to the directory where validation results are saved
+val_results_path = '/content/runs/segment/val'
+
+# List some example prediction images to display
+# These are typically named val_batch*_pred.jpg or similar
+example_images = [
+    'val_batch0_pred.jpg',
+    'val_batch1_pred.jpg',
+    'val_batch2_pred.jpg'
+]
+
+for img_name in example_images:
+    img_path = os.path.join(val_results_path, img_name)
+    if os.path.exists(img_path):
+        print(f"\nDisplaying: {img_name}")
+        display(Image(filename=img_path))
+    else:
+        print(f"{img_name} not found in {val_results_path}")
